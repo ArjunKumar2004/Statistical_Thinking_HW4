@@ -1,0 +1,250 @@
+---
+title: "Statistical Thinking- Homework 4"
+author: "Arjun Kumar"
+date: "2024-02-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(kableExtra)
+library(ggplot2)
+library(tibble)
+library(rvest)
+library(dplyr)
+library(readr)
+library(boot)
+```
+
+#GITHUB LINK: https://github.com/ArjunKumar2004/Statistical_Thinking_HW4
+
+
+# Problem 1
+
+## Theory A:
+
+Claim:
+Gas stations charge more if they lack direct competition in sight.
+
+Approach:
+Determine the average price difference between gas stations that can see their competition and those that can't.
+To determine the 95% confidence interval for this difference, use bootstrapping.
+```{r echo = FALSE}
+
+gas_prices <- read.csv("GasPrices.csv")
+
+
+filtered_gas_prices <- gas_prices[complete.cases(gas_prices$Price) & complete.cases(gas_prices$Competitors), ]
+
+
+bootstrap_diff_competitors <- function(data, indices) {
+  mean_with_competitors <- mean(data$Price[data$Competitors == "Y"][indices], na.rm = TRUE)
+  mean_without_competitors <- mean(data$Price[data$Competitors == "N"][indices], na.rm = TRUE)
+  mean_with_competitors - mean_without_competitors
+}
+
+bootstrap_results_competitors <- boot(data = filtered_gas_prices, statistic = bootstrap_diff_competitors, R = 1000)
+confidence_interval_competitors <- boot.ci(bootstrap_results_competitors, type = "bca")$bca[4:5]
+```
+Evidence: The 95% confidence interval for the difference in mean gas prices between competitors and non-competitors is approximately `r round(confidence_interval_competitors[1], 2)` to `r round(confidence_interval_competitors[2], 2)`
+
+Conclusion: This theory is not supported by the evidence. There is no statistically significant difference in gas prices between gas stations with direct competition in sight and those without, according to the 95% confidence interval for the difference in mean gas prices between competitors and non-competitors, which includes zero.
+
+## Theory B
+Claim: Gas prices are higher in wealthier areas.
+
+```{r echo=FALSE}
+
+ggplot(gas_prices, aes(x = Income, y = Price)) +
+  geom_point() +
+  labs(x = "Median Household Income", y = "Gas Price",
+       title = "Scatter plot of Gas Prices vs. Median Household Income") +
+  theme_minimal()
+
+
+lm_model <- lm(Price ~ Income, data = gas_prices)
+
+
+
+intercept <- coef(lm_model)[1]
+intercept
+
+income_rate <- coef(lm_model)[2]
+income_rate
+```
+Evidence: The regression trend relationship between income and gas prices is `r income_rate`with the intercept being `r intercept`.
+
+Conclusion: This theory is supported by the evidence. With an estimated slope of 1.248341e-06, the regression analysis demonstrates a positive link between median family income and gas prices. According to this, petrol costs rise by about $1.25e-06 for every $1 increase in the median household income.
+
+## Theory C
+
+Claim: Gas Stations at Stoplights Charge More
+
+```{r echo =  FALSE}
+relevant_data <- gas_prices %>%
+  select(Price, Stoplight)
+
+
+gas_prices_with_stoplight <- relevant_data$Price[relevant_data$Stoplight == "Y"]
+gas_prices_without_stoplight <- relevant_data$Price[relevant_data$Stoplight == "N"]
+
+
+t_test_result <- t.test(gas_prices_with_stoplight, gas_prices_without_stoplight)
+
+print(t_test_result)
+
+stop_conf =  t_test_result$conf.int
+stop_conf
+```
+Evidence: The 95% Confidence Interval for the Difference in Mean Gas Prices between Stoplight and No Stoplight Gas Stations ranges from `r round(stop_conf[1], 2)` to `r round(stop_conf[2], 2)`
+
+Conclusion: This theory is not supported by the evidence. The results of the Welch's Two Sample t-test (p = 0.8521) and the bootstrap analysis's 95% confidence interval (-0.04 to 0.03) show that there is no statistically significant difference in gas pricing between gas stations with stoplights and those without.
+
+## Theory D
+
+Claim: Gas Stations with direct highway access charge more
+```{r echo=FALSE}
+cleaned_gas_prices <- gas_prices[complete.cases(gas_prices$Price) & complete.cases(gas_prices$Highway), ]
+t_test_results <- t.test(Price ~ Highway, data = cleaned_gas_prices)
+t_test_results
+confidence <- t_test_results$conf.int
+```
+
+Evidence: The 95% Confidence Interval for the Difference in Mean Gas Prices between Stoplight and No Stoplight Gas Stations ranges from `r round(confidence[1], 2)` to `r round(confidence[2], 2)`
+
+Conclusion: This theory is supported by the evidence. Gas stations with direct highway access often had lower gas prices than those without, according to both the Welch's Two Sample t-test p-value (p = 0.0188) and the bootstrap analysis's 95% confidence interval (-0.08 to -0.01).
+
+## Theory E
+
+Claim: Shell charges more than all other non-Shell brands
+
+```{r echo =  FALSE}
+shell_vs_nonshell <- subset(gas_prices, Brand %in% c("Shell", "Other"))
+
+t_test_results <- t.test(Price ~ Brand, data = shell_vs_nonshell)
+t_test_results
+shell_conf <- t_test_results$conf.int
+
+```
+Evidence: The 95% Confidence Interval for the Difference in Mean Gas Prices between Shell Gas Prices ranges from `r round(shell_conf[1], 2)` to `r round(shell_conf[2], 2)`
+
+Conclusion: This theory is not supported by the evidence. There is no statistically significant difference in gas pricing between Shell and non-Shell gas stations, according to the p-value from the Welch's Two Sample t-test (p = 0.08241) and the 95% confidence interval from the bootstrap analysis (-0.08 to 0.01).
+
+# Problem 2
+
+**Part A**
+```{r echo = FALSE}
+sclass <- read.csv("sclass.csv")
+filtered_sclass <- sclass %>%
+  filter(year == 2011, trim == "63 AMG")
+num_replicates <- 1000
+bootstrap_sclass <- replicate(num_replicates, {
+  bootstrap_sample <- sample(filtered_sclass$mileage, size = nrow(filtered_sclass), replace = TRUE)
+  mean(bootstrap_sample)
+})
+confidence_mileage <- quantile(bootstrap_sclass, probs = c(0.025, 0.975))
+```
+
+The 95% confidence interval for the average mileage of 2011 S-Class 63 AMGs is estimated to range from approximately `r round(confidence_mileage[1], 2)` to `r round(confidence_mileage[2],2)` miles.
+
+
+**Part B**
+```{r echo = FALSE}
+second_sclass <- sclass %>%
+  filter(year == 2014, trim == "550") %>%
+  mutate(isBlack = as.integer(color == "Black"))
+num_replicates <- 1000
+bootstrap_sclass_second <- replicate(num_replicates, {
+  bootstrap_sample <- sample(second_sclass$isBlack, size = nrow(second_sclass), replace = TRUE)
+  mean(bootstrap_sample)
+})
+confidence_black <- quantile(bootstrap_sclass_second, probs = c(0.025, 0.975))
+```
+
+The 95% confidence interval for the proportion of 2011 S-Class 550s painted black is estimated to range from approximately `r format(confidence_black[1], big.mark = ",")` to `r format(confidence_black[2], big.mark = ",")`.
+
+# Problem 3
+
+```{r echo = FALSE}
+survey = read.csv("nbc_pilotsurvey.csv")
+filtered_partA <- survey %>%
+  filter(Show %in% c("Living with Ed", "My Name is Earl"))
+
+confidence_partA <- t.test(Q1_Happy ~ Show, data = filtered_partA, conf.level = 0.95)$conf.int
+```
+## Part A
+Question: Which show makes people happier: "Living with Ed" or "My Name is Earl"?
+
+Approach: Filter the dataset for "Living with Ed" and "My Name is Earl". Conduct a t-test to compare the mean Q1_Happy scores between the two shows.
+
+Results: The 95% confidence interval for the difference in mean happiness scores between "Living with Ed" and "My Name is Earl" is `r round(confidence_partA[1], 2)` and `r round(confidence_partA[2], 2)`.
+
+Conclusion: The difference in mean happiness scores between "Living with Ed" and "My Name is Earl" has a 95% confidence interval that includes zero, ranging from -0.1 to 0.4. This suggests that there's no statistically significant variation in the mean Q1_Happy scores between the two programs. Thus, neither show can definitively be shown to make viewers happier than the other based on the data presented in this investigation.
+
+```{r echo = FALSE}
+filtered_partB <- survey %>%
+  filter(Show %in% c("The Biggest Loser", "The Apprentice: Los Angeles"))
+
+confidence_partB <- t.test(Q1_Annoyed ~ Show, data = filtered_partB, conf.level = 0.95)$conf.int
+```
+## Part B
+Question: Which reality/contest show made people feel more annoyed: "The Biggest Loser" or "The Apprentice: Los Angeles"?
+
+Approach: Filter the dataset for "The Biggest Loser" and "The Apprentice: Los Angeles". Conduct a t-test to compare the mean Q1_Annoyed scores between the two shows.
+
+Results: The 95% confidence interval for the difference in mean annoyed scores between "The Biggest Loser" and "The Apprentice: Los Angeles" is `r round(confidence_partB[1], 2)` and `r round(confidence_partB[2], 2)`.
+
+Conclusion: The range of 0.02 to 0.52 represents the 95% confidence interval for the mean irritated score difference between "The Biggest Loser" and "The Apprentice: Los Angeles". The mean Q1_Annoyed scores for the two programs differ statistically significantly because this period does not include zero. According to this analysis, "The Apprentice: Los Angeles" caused viewers to become more irritated than "The Biggest Loser."
+
+
+```{r echo = FALSE}
+filtered_partC <- survey %>%
+  filter(Show == "Dancing with the Stars")
+
+
+proportion_confusing <- mean(filtered_partC$Q2_Confusing >= 4)
+
+n <- nrow(filtered_partC)
+se <- sqrt(proportion_confusing * (1 - proportion_confusing) / n)
+margin_error <- 1.96 * se
+confidence_interval <- c(proportion_confusing - margin_error, proportion_confusing + margin_error)
+```
+
+## Part C
+
+Question: What proportion of American TV watchers would we expect to give a response of 4 or greater to the “Q2_Confusing” question for "Dancing with the Stars"?
+
+Approach: Filter the dataset for "Dancing with the Stars". Calculate the proportion of viewers giving a response of 4 or greater to the Q2_Confusing question. Construct a large-sample 95% confidence interval for this proportion.
+
+Results: The large-sample 95% confidence interval for the proportion of American TV watchers giving a response of 4 or greater to the Q2_Confusing question for "Dancing with the Stars" is [ `r round(confidence_interval[1], 2)` , `r round(confidence_interval[2], 2)` ].
+
+Conclusion: The percentage of American TV viewers who answered "Dancing with the Stars" with a score of four or higher falls within a large-sample 95% confidence interval of [0.04, 0.12]. This indicates that there is a 95% confidence interval within which the true percentage of viewers who find the show puzzling is contained. As a result, according to this research, 4% to 12% of American TV viewers should have answered "Dancing with the Stars" with a score of 4 or higher in the Q2_Confusing question
+
+# Problem 4
+
+Question: Our goal is to determine whether the revenue generated by eBay's paid advertising on Google's search engine differs significantly from that of organic search results.
+
+Approach: We will calculate the revenue ratio difference between the treatment and control DMAs. The treatment DMAs had a one-month pause in eBay's Google AdWords advertising, while the control DMAs carried on with their regular advertising. After that, we'll utilize bootstrapping to get a 95% confidence interval for this difference using at least 10,000 Monte Carlo simulations.
+
+```{r echo = FALSE}
+ebay <- read.csv("ebay.csv")
+
+ebay <- transform(ebay, revenue_ratio = rev_after / rev_before)
+
+treatment_group <- ebay[ebay$adwords_pause == 1, ]
+control_group <- ebay[ebay$adwords_pause == 0, ]
+
+revenue_ratio_diff <- function(data1, data2) {
+  mean(data1) - mean(data2)
+}
+
+bootstrap_results <- replicate(10000, revenue_ratio_diff(sample(treatment_group$revenue_ratio, replace = TRUE),
+                                                         sample(control_group$revenue_ratio, replace = TRUE)))
+
+confidence_interval <- quantile(bootstrap_results, c(0.025, 0.975))
+```
+
+Results: Our method involved bootstrapping 10,000 Monte Carlo simulations to determine the revenue ratio difference between the treatment and control DMAs. We were able to derive a 95% confidence interval for this difference from these simulations. This gave us the interval of `r round(confidence_interval[1], 2)` to `r round(confidence_interval[2], 2)`.
+
+Conclusion: Our analysis revealed that, in the treatment DMAs as opposed to the control DMAs, the revenue earned by eBay's paid advertising on Google's search engine is much lower, with a 95% confidence interval for the difference in revenue ratio ranging from -0.09 to -0.01. This shows that stopping eBay's Google AdWords advertising resulted in a drop in sales, suggesting that Google's sponsored advertising may in fact increase eBay's sales.
